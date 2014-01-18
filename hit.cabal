@@ -83,6 +83,8 @@ Executable           Hit
                    , parsec     >= 3
                    , filepath
                    , directory
+                   , split
+                   , Diff
                    , hit
     Buildable: True
   else
