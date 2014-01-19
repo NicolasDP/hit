@@ -1,3 +1,11 @@
+-- |
+-- Module      : Data.Git.Diff
+-- License     : BSD-style
+-- Maintainer  : Nicolas DI PRIMA <nicolas@di-prima.fr>
+-- Stability   : experimental
+-- Portability : unix
+--
+
 module Data.Git.Diff
     ( HitDiff
     , getDiff
@@ -14,6 +22,13 @@ import Data.Git.Storage.Object
 
 import Data.Algorithm.Diff (getGroupedDiff, Diff(..))
 
+-- | This represents a diff.
+-- (filename,right,Index1,Index2,[Diff [t]])
+-- where filename is the name of the file
+--       right comes from HTree
+--       index1 is a reference to this file's object
+--       index2 is an other reference to this file's object
+--       a list of grouped diff (see Data.Algorithm.Diff)
 type HitDiff      = (BS.ByteString,Int,Ref,Ref,[Diff [L.ByteString]])
 type HitDiffChunk = (BS.ByteString,Int,Ref    ,      [L.ByteString] )
 
@@ -48,8 +63,9 @@ buildListForDiff git revision = do
                 Nothing  -> error "not a valid object"
                 Just obj -> return $ oiData obj
 
-getDiff :: Revision -- ^ commit reference
-        -> Revision -- ^ commit reference
+-- | It returns a diff between two revisions
+getDiff :: Revision -- ^ commit revision
+        -> Revision -- ^ commit revision
         -> Git      -- ^ repository
         -> IO [HitDiff]
 getDiff rev1 rev2 git = do
