@@ -20,6 +20,7 @@ import Data.Git.Types
 import Data.Git.Ref
 import Data.Git.Repository
 import Data.Git.Revision
+import Data.Git.Diff
 import Data.Word
 import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.ByteString.Char8 as BC
@@ -28,8 +29,8 @@ import qualified Data.Map as M
 import qualified Data.HashTable.IO as H
 import qualified Data.Hashable as Hashable
 
-import Data.List.Split
-import Data.Algorithm.Diff
+import Data.Algorithm.Diff (Diff(..))
+import Data.Algorithm.DiffOutput
 
 type HashTable k v = H.CuckooHashTable k v
 
@@ -163,42 +164,19 @@ getLog revision git = do
             return ()
           where author = commitAuthor commit
 
-catBlobFile ref git = do
-    mobj <- getObjectRaw git ref True
-    case mobj of
-        Nothing  -> error "not a valid object"
-        Just obj -> return $ oiData obj
-
-
--- buildList :: Git -> Rev -> IO ([(BC.ByteString, String)])
-buildList git revision = do
-    ref    <- maybe (error "revision cannot be found") id <$> resolveRevision git revision
-    commit <- getCommit git ref
-    let commitTreeRef = commitTreeish commit
-    tree <- resolveTreeish git commitTreeRef
-    case tree of
-        Just t -> do htree <- buildHTree git t
-                     buildTreeList htree []
-        _      -> error "cannot build a tree from this reference"
+showDiff rev1 rev2 git = do
+    diffList <- getDiff rev1 rev2 git
+    mapM_ showADiff diffList
     where
-        buildTreeList []                     list = return list
-        buildTreeList ((_,n,TreeFile r):xs)  list = do content <- catBlobFile r git
-                                                       buildTreeList xs $ ((n, splitOn "\n" $ LC.unpack content) : list)
-        buildTreeList ((_,_,TreeDir _ _):xs) list = buildTreeList xs list
+        showADiff :: HitDiff -> IO ()
+        showADiff (file,i1,ref1,ref2,diff) =
+            let filename = BC.unpack file in
+            printf "Diff --hit a/%s b/%s\nIndex %s..%s %06o\n<<< a/%s\n>>> b/%s\n%s\n" filename filename (show ref1) (show ref2) i1 filename filename $ ppDiff (convertDiff diff)
 
-buildDiff []            []            = []
-buildDiff ((n1,a1):xs1) []            = (n1, (getDiff a1 [])) : (buildDiff xs1 [])
-buildDiff []            ((n2,a2):xs2) = (n2, (getDiff [] a2)) : (buildDiff []  xs2)
-buildDiff ((n1,a1):xs1) ((n2,a2):xs2) = (n1, (getDiff a1 a2)) : (buildDiff xs1 xs2)
-
--- hitDiff :: Ref -- ^ commit reference
---        -> Ref -- ^ commit reference
---        -> Git -- ^ repository
---        -> IO ()
-hitDiff rev1 rev2 git = do
-        commit1 <- buildList git rev1
-        commit2 <- buildList git rev2
-        putStrLn $ show $ buildDiff commit1 commit2
+	convertDiff [] = []
+	convertDiff ((First a):xs) = (First (map LC.unpack a)) : (convertDiff xs)
+	convertDiff ((Second a):xs) = (Second (map LC.unpack a)) : (convertDiff xs)
+	convertDiff ((Both a b):xs) = (Both (map LC.unpack a) (map LC.unpack b)) : (convertDiff xs)
 
 main = do
     args <- getArgs
@@ -209,7 +187,7 @@ main = do
         ["ls-tree",rev,path] -> withCurrentRepo $ lsTree (fromString rev) path
         ["rev-list",rev]     -> withCurrentRepo $ revList (fromString rev)
         ["log",rev]          -> withCurrentRepo $ getLog (fromString rev)
-        ["diff",rev1,rev2]   -> withCurrentRepo $ hitDiff (fromString rev1) (fromString rev2)
+        ["diff",rev1,rev2]   -> withCurrentRepo $ showDiff (fromString rev1) (fromString rev2)
         cmd : [] -> error ("unknown command: " ++ cmd)
         []       -> error "no args"
         _        -> error "unknown command line arguments"
