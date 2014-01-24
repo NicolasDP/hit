@@ -47,7 +47,7 @@ Library
                    , zlib
                    , zlib-bindings >= 0.1 && < 0.2
                    , time
-                   , Diff
+                   , patience
   Exposed-modules:   Data.Git
                      Data.Git.Types
                      Data.Git.Storage
@@ -86,7 +86,7 @@ Executable           Hit
                    , filepath
                    , directory
                    , hit
-                   , Diff
+                   , patience
     Buildable: True
   else
     Buildable: False
